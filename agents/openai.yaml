@@ -1,0 +1,4 @@
+interface:
+  display_name: "Seedance Ad Replicator"
+  short_description: "Reverse-engineer ads into Seedance remake prompts"
+  default_prompt: "Use $seedance-ad-replicator to analyze this ad video and generate sub-15-second Seedance remake prompts."
