@@ -12,6 +12,18 @@
 
 ---
 
+## 给 AI Agent / 低代码用户的部署说明
+
+如果你不会代码，或者希望把这个 GitHub 项目直接交给 Cursor、Claude Code、OpenAI Codex、Dify、Coze、低代码平台或其他 Agent 自动部署，可以把下面这个文件一起发给 Agent：
+
+```text
+README_FOR_AI_AGENT.md
+```
+
+它里面写了面向 Agent 的部署步骤、模型配置方式、常见报错处理和安全要求。
+
+---
+
 ## 这个 Skill 能做什么？
 
 - 把广告视频反向拆解成结构化广告策略。
@@ -66,6 +78,27 @@ seedance-ad-replicator/
 
 ---
 
+## 模型支持说明
+
+当前 `scripts/analyze_ad_video.py` 不再只绑定 Gemini，已经支持多种模型接入方式：
+
+| Provider | 适合场景 | 输入方式 | API Key 环境变量 | 模型环境变量 |
+| --- | --- | --- | --- | --- |
+| `gemini` | 直接上传本地视频给 Gemini 分析 | 本地视频文件 | `GEMINI_API_KEY` | `GEMINI_MODEL`，默认 `gemini-2.5-flash` |
+| `openai` | 使用 OpenAI 官方或兼容视觉模型 | `--video-url` 或本地抽帧 | `OPENAI_API_KEY` | `OPENAI_MODEL` |
+| `ark` | 使用火山方舟 / 豆包 OpenAI-compatible 接口 | `--video-url` 或本地抽帧 | `ARK_API_KEY` | `ARK_MODEL` |
+| `openai-compatible` | 使用任意 OpenAI-compatible 服务 | `--video-url` 或本地抽帧 | 默认 `LLM_API_KEY`，也可用 `--api-key-env` 指定 | `LLM_MODEL` |
+
+说明：
+
+- `gemini` 模式会把本地视频上传给 Gemini，是当前最直接的视频理解方式。
+- 非 Gemini 模式支持两种方式：
+  - 如果模型支持 `video_url`，可以直接传 `--video-url`；
+  - 如果模型不支持直接视频输入，但支持图片输入，可以传本地视频路径，脚本会用 `ffmpeg` 抽取关键帧，再把关键帧发送给视觉模型分析。
+- 抽帧模式只能看到画面关键帧，不能完整理解口播、BGM 和音效。音频信息建议通过 `--context` 或 `--context-file` 补充。
+
+---
+
 ## 快速开始
 
 ### 1. 安装依赖
@@ -113,6 +146,8 @@ export GEMINI_API_KEY="your_api_key_here"
 
 ### 3. 分析一条广告视频
 
+#### 方式 A：Gemini 默认模式
+
 ```bash
 python scripts/analyze_ad_video.py "/path/to/ad-video.mp4"
 ```
@@ -123,6 +158,61 @@ python scripts/analyze_ad_video.py "/path/to/ad-video.mp4"
 GEMINI_MODEL="gemini-2.5-flash" python scripts/analyze_ad_video.py "/path/to/ad-video.mp4"
 ```
 
+#### 方式 B：OpenAI / 兼容模型，本地抽帧分析
+
+适合模型支持图片输入，但不支持直接视频输入的情况。需要安装 `ffmpeg`。
+
+```bash
+export OPENAI_API_KEY="your_openai_api_key"
+export OPENAI_MODEL="gpt-4.1-mini"
+
+python scripts/analyze_ad_video.py "/path/to/ad-video.mp4" \
+  --provider openai \
+  --max-frames 12
+```
+
+#### 方式 C：火山方舟 / 豆包 / Ark，本地抽帧分析
+
+```bash
+export ARK_API_KEY="your_ark_api_key"
+export ARK_MODEL="your_model_or_endpoint_id"
+
+python scripts/analyze_ad_video.py "/path/to/ad-video.mp4" \
+  --provider ark \
+  --max-frames 12
+```
+
+#### 方式 D：模型支持 video_url 时，直接传视频 URL
+
+如果你的模型/API 支持 `video_url` 输入，可以这样：
+
+```bash
+python scripts/analyze_ad_video.py \
+  --provider openai \
+  --video-url "https://example.com/ad-video.mp4"
+```
+
+或使用火山方舟：
+
+```bash
+python scripts/analyze_ad_video.py \
+  --provider ark \
+  --video-url "https://example.com/ad-video.mp4"
+```
+
+如果接口返回 `unsupported content type: video_url`，说明当前模型/API 不支持直接视频输入，请改用本地抽帧模式。
+
+#### 方式 E：任意 OpenAI-compatible 服务
+
+```bash
+export LLM_API_KEY="your_api_key"
+export LLM_MODEL="your_model_name"
+
+python scripts/analyze_ad_video.py "/path/to/ad-video.mp4" \
+  --provider openai-compatible \
+  --base-url "https://provider.example.com/v1"
+```
+
 脚本会输出 Markdown，内容包括：
 
 - 全片广告策略；
@@ -131,7 +221,7 @@ GEMINI_MODEL="gemini-2.5-flash" python scripts/analyze_ad_video.py "/path/to/ad-
 - 每段 Seedance 复刻 Prompt；
 - 替换素材建议。
 
-注意：这个脚本会把视频上传到 Gemini / Google 进行处理。请不要上传未授权、保密或敏感视频，除非你确认自己有权限，并接受对应服务商的数据处理政策。
+注意：分析脚本会把视频、视频 URL 或抽帧图片发送给你选择的模型服务商。请不要上传未授权、保密或敏感视频，除非你确认自己有权限，并接受对应服务商的数据处理政策。
 
 ---
 
@@ -274,9 +364,9 @@ CTA策略：保留CTA出现位置，但具体文案后期替换成我自己的�
 
 请特别注意：
 
-- `scripts/analyze_ad_video.py` 会把你提供的视频上传到 Gemini 进行处理。
+- `scripts/analyze_ad_video.py` 会把视频、视频 URL 或抽帧图片发送给你选择的模型服务商。Gemini 模式会上传本地视频；OpenAI-compatible 抽帧模式会上传关键帧图片。
 - 请不要分析没有授权的第三方视频、保密视频、内部素材或敏感内容，除非你确认自己有权限并接受服务商的数据政策。
-- API Key 只通过 `GEMINI_API_KEY` 环境变量读取，不应该写进代码或提交到仓库。
+- API Key 通过环境变量读取，例如 `GEMINI_API_KEY`、`OPENAI_API_KEY`、`ARK_API_KEY` 或 `LLM_API_KEY`，不应该写进代码或提交到仓库。
 - `scripts/split_video_segments.py` 使用 `subprocess.run` 的参数列表调用 `ffmpeg`，没有使用 `shell=True`。
 - 本项目脚本不会主动收集或保存用户数据；除 Gemini 分析脚本中的明确视频上传外，没有其他外部传输行为。
 
@@ -323,7 +413,7 @@ CTA策略：保留CTA出现位置，但具体文案后期替换成我自己的�
 ## 局限性
 
 - 视频理解效果取决于所使用的模型。
-- 当前脚本默认使用 Gemini。如果你想使用其他模型，可以扩展为 `视频 -> 抽帧 -> ASR/OCR -> 视觉模型分析 -> Prompt 生成` 的流程。
+- 当前脚本已支持 Gemini、OpenAI、火山方舟/Ark 和任意 OpenAI-compatible 接口；但不同模型的视频/图片输入格式和效果不同，必要时需要调整 provider 参数。
 - 自动生成的分段时间建议上线前人工复核。
 - 涉及产品功效、医疗、美妆、食品、金融等敏感品类时，卖点表达和视觉证明需要做合规审核。
 - 如果源视频音频复杂，建议单独进行 ASR 转写或人工补充台词内容。

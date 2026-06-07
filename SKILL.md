@@ -27,31 +27,65 @@ If optional context is missing, generate prompts that explicitly say which refer
 
 ## Tool Workflow
 
-Prefer using `scripts/analyze_ad_video.py` when a video path is available:
+Prefer using `scripts/analyze_ad_video.py` when a video path is available. The script supports multiple model providers.
 
-```bash
-python scripts/analyze_ad_video.py "<video_path>"
-```
-
-Set `GEMINI_API_KEY` in the environment:
+### Gemini direct-video mode
 
 ```bash
 export GEMINI_API_KEY="your_api_key_here"
-python scripts/analyze_ad_video.py "<video_path>"
+python scripts/analyze_ad_video.py "<video_path>" --provider gemini
 ```
 
-The script uploads the video to Gemini and returns Markdown. Videos may be sent to Google for processing. Avoid passing API keys as command-line arguments because they may appear in shell history or process listings. If the API key or dependency is missing, explain the requirement and provide a manual analysis template.
+Gemini mode uploads the local video to Gemini and returns Markdown. Videos may be sent to Google for processing.
 
-Dependency for video analysis:
+### OpenAI / Ark / OpenAI-compatible frame mode
+
+If the provider supports image inputs but not direct video inputs, the script can sample frames with `ffmpeg` and send keyframes to the vision model:
 
 ```bash
-python -m pip install google-genai
+export OPENAI_API_KEY="your_api_key_here"
+export OPENAI_MODEL="gpt-4.1-mini"
+python scripts/analyze_ad_video.py "<video_path>" --provider openai --max-frames 12
 ```
 
-Use `scripts/split_video_segments.py` only when the user asks for physical video clips. It requires `ffmpeg`:
+For Ark / Doubao-style OpenAI-compatible APIs:
 
 ```bash
-python scripts/split_video_segments.py "<video_path>" --segments "0-12.5,12.5-25.0" --out-dir ./segments
+export ARK_API_KEY="your_api_key_here"
+export ARK_MODEL="your_model_or_endpoint_id"
+python scripts/analyze_ad_video.py "<video_path>" --provider ark --max-frames 12
+```
+
+For any OpenAI-compatible provider:
+
+```bash
+export LLM_API_KEY="your_api_key_here"
+export LLM_MODEL="your_model_name"
+python scripts/analyze_ad_video.py "<video_path>" --provider openai-compatible --base-url "https://provider.example.com/v1"
+```
+
+### video_url mode
+
+If the provider supports `video_url` input, use:
+
+```bash
+python scripts/analyze_ad_video.py --provider openai --video-url "https://example.com/ad.mp4"
+```
+
+If the API reports that `video_url` is unsupported, switch to local frame mode.
+
+Avoid passing API keys as command-line arguments because they may appear in shell history or process listings. If the API key or dependency is missing, explain the requirement and provide a manual analysis template.
+
+Dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Frame mode and physical video splitting require `ffmpeg`. Use `scripts/split_video_segments.py` only when the user asks for physical video clips:
+
+```bash
+python scripts/split_video_segments.py "<video_path>" --segments "0-12.5,12.5-24.0" --out-dir ./segments
 ```
 
 ## Output Format
